@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: safecircle
+      POSTGRES_PASSWORD: safecircle
+      POSTGRES_DB: safecircle
+    ports:
+      - "5432:5432"
+    volumes:
+      - safecircle_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U safecircle -d safecircle"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://safecircle:safecircle@db:5432/safecircle?schema=public
+      FRONTEND_ORIGIN: http://localhost:5173
+      PUBLIC_BASE_URL: http://localhost:5173
+      JWT_ACCESS_SECRET: dev-access-secret-change-me-please-123456789
+      JWT_REFRESH_SECRET: dev-refresh-secret-change-me-please-987654321
+      ACCESS_TOKEN_TTL: 15m
+      REFRESH_TOKEN_DAYS: 7
+      SHARE_TOKEN_MINUTES: 120
+      AI_API_URL: ""
+      AI_API_KEY: ""
+      AI_MODEL: ""
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npx prisma db push && npm run start"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:4000/api
+        VITE_SOCKET_URL: http://localhost:4000
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  safecircle_pgdata:
